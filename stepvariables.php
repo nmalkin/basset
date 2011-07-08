@@ -27,7 +27,8 @@ class StepVariables extends UserVariables {
     
     /** Returns a unique key under which we will save the StepVariables in Session->data. */
     protected static function makeKey(Step $step, $repetition) {
-        $repetition_string = is_null($repetition) ? '' : '_repetition_' . $repetition;
-        return 'step_' . $step->order() . '_' . $repetition_string . '_vars';
+//        $repetition_string = is_null($repetition) ? '' : '_repetition_' . $repetition;
+//        return 'step_' . $step->order() . $repetition_string . '_vars';
+        return 'step_uservariables';
     }
 }

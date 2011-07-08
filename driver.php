@@ -248,7 +248,8 @@ function startStep() {
 
     // initialize Smarty template engine
     $smarty = new Smarty();
-    $smarty->registerObject('basset', $basset_variables);
+//    $smarty->registerObject('basset', $basset_variables);
+    $smarty->assign('basset', $basset_variables);
 
     $RESPONSE = array(
         'action' => 'replace',

@@ -30,13 +30,32 @@ if($assignment_id == 'ASSIGNMENT_ID_NOT_AVAILABLE') {
         $session = Session::newSession($assignment_id, AMT::getWorkerID($assignment_id), $game);
     }
 
-    if($session->ended()) {
-        die('your session has already ended');
+    switch($session->getStatus()) {
+        case Session::finished:
+        case Session::terminated:
+            $content = 'session ended'; // TODO: better warning?
+            break;
+        case Session::awaiting_user_input:
+            $smarty = new Smarty();
+            $basset_variables = new BassetVariables($session);
+            $smarty->registerObject('basset', $basset_variables);
+            $content = $smarty->fetch($session->current_step->getHTMLFilename());
+            break;
+        case Session::group_request_fulfilled:
+            // Treat this as if the group request is unfulfilled. 
+            // The proper response will occur on the next poll.
+        case Session::group_request_pending:
+            $content = "waiting for partner"; //TODO: have this match the behavior from driver
+            break;
+        case Session::finished_step:
+            $content = 'waiting on partner(s)'; //TODO: have this match the behavior from driver
+            break;
+        default:
+            throw new Exception('unknown session status');
+            break;
     }
 
-    $smarty = new Smarty();
-    $basset_variables = new BassetVariables($session);
-    $smarty->registerObject('basset', $basset_variables);
+    
 }
 ?>
 <!DOCTYPE html>
@@ -51,7 +70,7 @@ if($assignment_id == 'ASSIGNMENT_ID_NOT_AVAILABLE') {
     <div id="countdown"></div>
     <div id="notifications"></div>
     <div id="content">
-        <?php $smarty->display($session->current_step->getHTMLFilename()); ?>
+        <?php echo $content; ?>
     </div>
     <script type="text/javascript">
         var POLL_PERIOD = 2000; // milliseconds
