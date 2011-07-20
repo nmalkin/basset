@@ -33,7 +33,7 @@ class Group {
      * @param array $groupMembers an array of sessions that will be members of this group
      * @return Group the newly created group
      */
-    public static function newGroupAtCurrentStep(array $groupMembers) {
+    protected static function newGroupAtCurrentStep(array $groupMembers) {
         if(count($groupMembers) < 1) {
             throw new InvalidArgumentException("invalid group size (" . count($groupMembers) . ")");
         }
@@ -59,13 +59,26 @@ class Group {
         $group = new Group($dbh->lastInsertId(), $groupMembers, array());
         
         // let the group members know they're in a group
-        foreach($groupMembers as $member) {
-            $member->setCurrentGroup($group);
-            $member->setStatus(Session::group_request_fulfilled);
-            $member->save();
-        }
+        self::setSessionsGroup($groupMembers, $group);
         
         return $group;
+    }
+    
+    /**
+     * Sets the current group of the given sessions to the given group,
+     * also setting their status to Session::group_request_fulfilled.
+     * 
+     * (Each session is explicitly saved.) TODO: this may not be necessary
+     * 
+     * @param array $sessions
+     * @param Group $group 
+     */
+    protected static function setSessionsGroup(array $sessions, Group $group) {
+        foreach($sessions as $member) {
+            $member->setCurrentGroup($group);
+            $member->setStatus(Session::group_request_fulfilled);
+            $member->save(); //TODO: this may not be necessary
+        }
     }
     
     /** @deprecated */
@@ -99,6 +112,13 @@ class Group {
         return self::getGroup($session->game, $session->currentStepLabel(), $session);
     }
     
+    /**
+     * Returns the Group from the database identified by the given ID.
+     * 
+     * @param mixed $id the id of the group in the database
+     * @throws InvalidArgumentException if no group was found matching this ID
+     * @return Group group matching given ID
+     */
     public static function getGroupByID($id) {
         $dbh = Database::handle();
         $sth = $dbh->prepare('SELECT * FROM groups where id = ?');
@@ -115,6 +135,68 @@ class Group {
             return new Group($row['id'], $sessions, unserialize($row['data']));
         } else {
             throw new InvalidArgumentException('no groups matching given id');
+        }
+    }
+    
+    /**
+     * Checks the group request queue for partners for the given session's current step.
+     * If a group can be formed, sets it as the current group for all of its members,
+     * then returns that group.
+     * Otherwise, adds this session to the group request queue,
+     * then returns FALSE.
+     *
+     * @param Session $session
+     * @return Group if a group can be formed, FALSE otherwise
+     */
+    public static function getNewGroup(Session $session) {
+        // set given group's satus as "request pending". this is for internal state checks.
+        $session->setStatus(Session::group_request_pending);
+        
+        // get all the requests for this game and step
+        $queue = new GroupRequestQueue($session->game, $session->currentStepLabel());
+        
+        // try getting a match for this session
+        $sessions = $queue->newRequest(new GroupRequest($session));
+        
+        if(is_bool($sessions) && $sessions == FALSE) { // no match
+            return FALSE;
+        } else { // found match
+            return self::newGroupAtCurrentStep($sessions);
+        }
+    }
+    
+    /**
+     * Attempts to form a group with all the members of the group from the previous round.
+     * If a group can be formed, sets it as the current group for all of its members,
+     * then returns that group.
+     * Otherwise, sets the current status of this session to Session::group_request_pending,
+     * then returns FALSE.
+     * 
+     * A group is considered "ready to be formed" when the status of each of its members
+     * is Session::group_request_pending.
+     * 
+     * @param Session $session
+     * @return Group if the group is formed, FALSE otherwise 
+     */
+    public static function getOldGroup(Session $session) {
+        // set given group's satus as "request pending". this is for internal state checks.
+        $session->setStatus(Session::group_request_pending);
+        
+        // get the group for the previous round
+        $previous_group = $session->getGroup($session->currentRound()->previousRound());
+        
+        // are all members ready?
+        $ready = array_reduce($previous_group->members, function($v, $w) {
+            return $v && ($w->getStatus() == Session::group_request_pending);
+        }, TRUE);
+        
+        if($ready) {
+            // let the group members know they're in a group
+            self::setSessionsGroup($previous_group->members, $previous_group);
+
+            return $previous_group;
+        } else {
+            return FALSE;
         }
     }
     
@@ -136,6 +218,15 @@ class Group {
         }
     }
     
+    /**
+     * Checks if all members of this group have finished the given round.
+     * A session has finished a given round if:
+     * 1) its current round follows the given round
+     * 2) OR if it is in the given round and its status is Session::finished_step
+     * 
+     * @param Round $round
+     * @return boolean TRUE if all members of this group have finished the given round
+     */
     public function finishedRound(Round $round) {
         return array_reduce($this->members, function($v, $w) use ($round) {
             $member_round = $w->currentRound();

@@ -103,7 +103,6 @@ function readyToMoveOn() {
     
     if($SESSION->current_step->requiresGroup()) {
         $group = $SESSION->getCurrentGroup();
-//        var_dump($group->allFinished());throw new Exception();
         if(! $group->finishedRound($SESSION->currentRound())) { // waiting for partners' input
             $RESPONSE = array('action' => 'replace', 'html' => 'waiting on partner(s)', 'controls' => array()); //TODO: better waiting screen (load from file)
             return FALSE;
@@ -249,7 +248,7 @@ function groupAvailable() {
     switch($SESSION->current_step->group) {
         case Step::group_new:
             // try getting a new group
-            if($group = GroupRequestQueue::getGroup($SESSION)) {
+            if(Group::getNewGroup($SESSION)) {
                 return TRUE;
             } else { // no group available: wait for partner
                 $RESPONSE = array('action' => 'replace', 'html' => 'waiting for partner(s)', 'controls' => array()); //TODO: better waiting screen (load from file)
@@ -257,31 +256,38 @@ function groupAvailable() {
             }
             break;
         case Step::group_keep:
-            // keeping the group from the last round
-            $previous_group = $SESSION->getGroup($SESSION->currentRound()->previousRound());
-            
-            // make sure all group members have completed their callback
-            $callbacks_done = array_reduce($previous_group->members, function($v, $w) {
-                return $v && ($w->getStatus() == Session::callback_done);
-            }, TRUE);
-            
-            if($callbacks_done) { // update group and move on
-                $SESSION->setStatus(Session::group_request_pending); // to pass the check done by setCurrentGroup
-                $SESSION->setCurrentGroup($previous_group);
+            if(Group::getOldGroup($SESSION)) {
                 return TRUE;
-            } else { // wait
+            } else { // no group available: wait for partner
                 $RESPONSE = array('action' => 'replace', 'html' => 'waiting on partner(s)', 'controls' => array()); //TODO: better waiting screen (load from file)
                 return FALSE;
             }
-            // set my partners' groups
-//            foreach($previous_group->partners($SESSION) as $partner) {
-//                $partner->advance();
-//                $partner->setStatus(Session::group_request_pending); // to pass the check done by setCurrentGroup
-//                $partner->setCurrentGroup($previous_group);
-//                $partner->setStatus(Session::group_request_fulfilled); // so that they know to load the html on next poll
-//                $partner->save();
-//            }
             break;
+//            // keeping the group from the last round
+//            $previous_group = $SESSION->getGroup($SESSION->currentRound()->previousRound());
+//            
+//            // make sure all group members have completed their callback
+//            $callbacks_done = array_reduce($previous_group->members, function($v, $w) {
+//                return $v && ($w->getStatus() == Session::callback_done);
+//            }, TRUE);
+//            
+//            if($callbacks_done) { // update group and move on
+//                $SESSION->setStatus(Session::group_request_pending); // to pass the check done by setCurrentGroup
+//                $SESSION->setCurrentGroup($previous_group);
+//                return TRUE;
+//            } else { // wait
+//                $RESPONSE = array('action' => 'replace', 'html' => 'waiting on partner(s)', 'controls' => array()); //TODO: better waiting screen (load from file)
+//                return FALSE;
+//            }
+//            // set my partners' groups
+////            foreach($previous_group->partners($SESSION) as $partner) {
+////                $partner->advance();
+////                $partner->setStatus(Session::group_request_pending); // to pass the check done by setCurrentGroup
+////                $partner->setCurrentGroup($previous_group);
+////                $partner->setStatus(Session::group_request_fulfilled); // so that they know to load the html on next poll
+////                $partner->save();
+////            }
+//            break;
         case Step::group_unique:
             throw new Exception("TODO");//TODO: implement
         case Step::group_none:

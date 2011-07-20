@@ -10,7 +10,7 @@ class GroupRequestQueue {
      * @param Game $game the desired game
      * @param string $step the desired step; The step is defined using the format given by Step->stepLabel.
      */
-    protected function __construct(Game $game, $step) {
+    public function __construct(Game $game, $step) {
         $this->requests = array();
         $this->game = $game;
         $this->step = $step;
@@ -29,11 +29,11 @@ class GroupRequestQueue {
 
     /**
      * Checks the queue for matches to this request.
-     * If a group can be formed, returns that group.
+     * If a group can be formed, returns an array with the sessions that will form this group.
      * Otherwise, returns FALSE.
      *
      * @param GroupRequest $request
-     * @return Group if a group can be formed, FALSE otherwise
+     * @return array<Session> if a group can be formed, FALSE otherwise
      */
     public function newRequest(GroupRequest $request) {
         // filter all requests that match this one
@@ -54,9 +54,8 @@ class GroupRequestQueue {
                 return $selected_request->session;
             }, $selected_requests);
             $sessions[] = $request->session; // don't forget the new request
-
-            // set up group for the matches
-            return Group::newGroupAtCurrentStep($sessions);
+            
+            return $sessions;
         } else { // not enough requests matching this one
             // add this request to the queue
             $this->addRequest($request);
@@ -98,19 +97,5 @@ class GroupRequestQueue {
         $sth->bindValue(':game', $request->game()->getID());
         $sth->bindValue(':step', $request->session->currentStepLabel());
         $sth->execute();
-    }
-    
-    /**
-     * Checks the queue for partners for the given session's current step.
-     * If a group can be formed, returns that group.
-     * Otherwise, returns FALSE.
-     *
-     * @param GroupRequest $request
-     * @return Group if a group can be formed, FALSE otherwise
-     */
-    public static function getGroup(Session $session) {
-        $session->setStatus(Session::group_request_pending);
-        $queue = new GroupRequestQueue($session->game, $session->currentStepLabel());
-        return $queue->newRequest(new GroupRequest($session));
     }
 }
