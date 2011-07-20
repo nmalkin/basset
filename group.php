@@ -1,13 +1,13 @@
 <?php
 class Group {
     /** An array of sessions that this group consists of. */
-    protected $members;
+    public $members;
     
     /** The ID of this group in the database. */
     protected $id;
     
     /** The data associated with this group. */
-    protected $data;
+    public $data;
     
     /**
      * Group constructor
@@ -62,11 +62,13 @@ class Group {
         foreach($groupMembers as $member) {
             $member->setCurrentGroup($group);
             $member->setStatus(Session::group_request_fulfilled);
+            $member->save();
         }
         
         return $group;
     }
     
+    /** @deprecated */
     public static function getGroup(Game $game, $step, Session $session) {
         $dbh = Database::handle();
         
@@ -92,6 +94,7 @@ class Group {
         throw new Exception('could not find group with matching game, step, and session');
     }
     
+    /** @deprecated */
     public static function getGroupAtCurrentStep(Session $session) {
         return self::getGroup($session->game, $session->currentStepLabel(), $session);
     }
@@ -115,7 +118,8 @@ class Group {
         }
     }
     
-    public function allFinished() {
+    /** @deprecated */
+    public function allFinished() {//var_dump($this);
         if(isset($this->data['all_finished']) && $this->data['all_finished'] == TRUE) {
             return TRUE;
         } else {
@@ -125,19 +129,52 @@ class Group {
             
             if($all_finished) { // remember this, since sessions will move on and no longer have this status
                 $this->data['all_finished'] = TRUE;
-                $this->updateData();
+                $this->saveData();
             }
             
             return $all_finished;
         }
     }
     
+    public function finishedRound(Round $round) {
+        return array_reduce($this->members, function($v, $w) use ($round) {
+            $member_round = $w->currentRound();
+            if($member_round->compareTo($round) == 0) {
+                $finished = ($w->getStatus() == Session::finished_step);
+            } elseif($member_round->compareTo($round) > 0) {
+                $finished = TRUE;
+            } elseif($member_round->compareTo($round) < 0) {
+                $finished = FALSE;
+            }
+            
+            return $v && $finished;
+        }, TRUE);
+    }
+    
+    public function newRound() {
+        $this->data['all_finished'] = FALSE;
+        $this->saveData();
+    }
+    
     /** Updates this group's data in the database. */
-    protected function updateData() {
+    public function saveData() {
         $dbh = Database::handle();
         $sth = $dbh->prepare('UPDATE groups SET data = :data WHERE id = :id');
         $sth->bindValue(':data', serialize(($this->data)));
         $sth->bindValue(':id', $this->id);
         $sth->execute();
+    }
+    
+    /**
+     * Returns all those sessions in this group that are not the given session.
+     * @param Session $session 
+     * @return array<Session>
+     */
+    public function partners(Session $session) {
+        $my_session_id = $session->id;
+        $partners = array_filter($this->members, function($member) use ($my_session_id) {
+            return $member->id != $my_session_id;
+        });
+        return array_values($partners); // re-index the array
     }
 }

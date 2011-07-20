@@ -38,7 +38,7 @@ if($assignment_id == 'ASSIGNMENT_ID_NOT_AVAILABLE') {
         case Session::awaiting_user_input:
             $smarty = new Smarty();
             $basset_variables = new BassetVariables($session);
-            $smarty->registerObject('basset', $basset_variables);
+            $smarty->assign('basset', $basset_variables);
             $content = $smarty->fetch($session->current_step->getHTMLFilename());
             break;
         case Session::group_request_fulfilled:
@@ -48,6 +48,7 @@ if($assignment_id == 'ASSIGNMENT_ID_NOT_AVAILABLE') {
             $content = "waiting for partner"; //TODO: have this match the behavior from driver
             break;
         case Session::finished_step:
+        case Session::callback_done;
             $content = 'waiting on partner(s)'; //TODO: have this match the behavior from driver
             break;
         default:
@@ -118,6 +119,7 @@ if($assignment_id == 'ASSIGNMENT_ID_NOT_AVAILABLE') {
                 // we alert with error
                 // (also assuming that the response is no longer JSON)
                 alert(data);
+                // TODO: add a message to try to refresh: this might fix problems
                 stopPolling();
             }
         }

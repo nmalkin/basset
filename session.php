@@ -21,6 +21,7 @@ class Session {
     const group_request_pending = 20;
     const group_request_fulfilled = 28;
     const finished_step = 30;
+    const callback_done = 35;
     const finished = 90;
     const terminated = 91;
 
@@ -29,6 +30,7 @@ class Session {
         self::group_request_pending,
         self::group_request_fulfilled,
         self::finished_step,
+        self::callback_done,
         self::finished,
         self::terminated);
     
@@ -196,19 +198,33 @@ class Session {
     public function ended() {
         return ($this->status == self::finished) || ($this->status == self::terminated);
     }
+    
+    /** 
+     * Returns a reference to the array data holding the data for the given round.
+     * 
+     * This array may be empty or already populated; in any case, it will exist.
+     */
+    public function &getRoundData(Round $round) {
+        $data_label = self::roundDataLabel($round);
+        if(! isset($this->data[$data_label])) {
+            $this->data[$data_label] = array();
+        }
+        
+        return $this->data[$data_label];
+    }
+    
+    /** Returns a label for the current round's data. */
+    protected static function roundDataLabel(Round $round) {
+        return $round->label() . '_data';
+    }
         
     /** 
      * Returns a reference to the array data holding the data for the current step.
      * 
-     * This array may be empty or already populated; in any case, it will exist.
+     * @see Session::getRoundData()
      */
-    public function &currentStepData() {
-        $current_step_data_key = $this->currentStepLabel() . '_data';
-        if(! isset($this->data[$current_step_data_key])) {
-            $this->data[$current_step_data_key] = array();
-        }
-        
-        return $this->data[$current_step_data_key];
+    public function &currentRoundData() {
+        return $this->getRoundData($this->currentRound());
     }
     
     /**
@@ -218,7 +234,7 @@ class Session {
      * @return string
      */
     public function currentStepLabel() {
-        return $this->current_step->stepLabel($this->repetition);
+        return $this->currentRound()->label();
     }
     
     /**
@@ -279,16 +295,16 @@ class Session {
      * Returns the group this session was in for the given step.
      * @param Step $step
      * @param int $repetition
-     * @throws InvalidArgumentException if the session doesn't have a groups saved for the given step
+     * @throws DoesNotExistException if the session doesn't have a groups saved for the given step
      * @return Group 
      */
-    public function getGroup(Step $step, $repetition = NULL) {
-        $key = self::groupKey($step, $repetition);
+    public function getGroup(Round $round) {
+        $key = self::groupKey($round);
         if(array_key_exists($key, $this->data)) {
             $group_id = $this->data[$key];
             return Group::getGroupByID($group_id); // TODO: maybe cache the Group somewhere, so we don't have to query the database and construct it every time?
         } else {
-            throw new InvalidArgumentException('no group for given step');
+            throw new DoesNotExistException('no group for given step');
         }
     }
     
@@ -301,26 +317,43 @@ class Session {
      * @return Group
      */
     public function getCurrentGroup() {
-        return $this->getGroup($this->current_step, $this->repetition);
+        return $this->getGroup($this->currentRound());
     }
     
+    /**
+     * Sets the group at the current step.
+     * 
+     * @param Group $group the group to be set
+     */
     public function setCurrentGroup(Group $group) {
         if($this->getStatus() != self::group_request_pending) {
             throw new Exception('cannot set group when session is not waiting for a group');
         }
         
-        $this->data[self::groupKey($this->current_step, $this->repetition)] = $group->getID();
+        $this->data[self::groupKey($this->currentRound())] = $group->getID();
     }
     
     /**
-     * Returns a key identifying the given step and repetition in $this->data table.
+     * Returns a key identifying where in $this->data table to find
+     * group data for the given step and repetition.
      * 
      * @see Step::stepLabel()
      * @param Step $step
      * @param int $repetition
      * @return string
      */
-    protected static function groupKey(Step $step, $repetition) {
-        return $step->stepLabel($repetition) . '_group';
+    protected static function groupKey(Round $round) {
+        return $round->label() . '_group';
     }
+    
+    /**
+     * Returns the current round for this session.
+     * 
+     * @see Round
+     * @return Round current round
+     */
+    public function currentRound() {
+        return new Round($this->current_step, $this->repetition);
+    }
+    
 }

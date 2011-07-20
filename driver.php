@@ -21,10 +21,6 @@ function getResponse() {
     }
     
     switch($SESSION->getStatus()) {
-        case Session::finished:
-        case Session::terminated:
-            $RESPONSE = 'session ended';
-            break;
         case Session::awaiting_user_input:
             processInput();
             break;
@@ -40,7 +36,26 @@ function getResponse() {
             if(readyToMoveOn()) {
                 executeUserCallback();
                 advanceStep();
+            } else {
+                /* 
+                 * readyToMoveOn sets the RESPONSE to the HTML of the waiting file.
+                 * But because their status was already finished_step,
+                 * we can assume that the waiting screen has already been loaded.
+                 * So we just tell them to wait (overriding the response).
+                */
+                $RESPONSE = array('action' => 'wait');
+             }
+            break;
+        case Session::callback_done: // happens only with group==keep
+            if(groupAvailable()) {
+                startStep();
+            } else {
+                $RESPONSE = array('action' => 'wait');
             }
+            break;
+        case Session::finished:
+        case Session::terminated:
+            $RESPONSE = 'session ended';
             break;
         default:
             throw new Exception('unknown session status');
@@ -88,7 +103,8 @@ function readyToMoveOn() {
     
     if($SESSION->current_step->requiresGroup()) {
         $group = $SESSION->getCurrentGroup();
-        if(! $group->allFinished()) { // waiting for partners' input
+//        var_dump($group->allFinished());throw new Exception();
+        if(! $group->finishedRound($SESSION->currentRound())) { // waiting for partners' input
             $RESPONSE = array('action' => 'replace', 'html' => 'waiting on partner(s)', 'controls' => array()); //TODO: better waiting screen (load from file)
             return FALSE;
         }
@@ -166,7 +182,7 @@ function validateInput() {
 function storeInput() {
     global $SESSION;
     
-    $step_data = &$SESSION->currentStepData();
+    $step_data = &$SESSION->currentRoundData();
     
     $step_data['click'] = $_POST['click'];
     
@@ -186,7 +202,7 @@ function executeUserCallback() {
     // prepare and execute user-defined callback
     if($SESSION->current_step->on_complete) {
         // the submission data from the latest round will also be passed to the user
-        $input_data = &$SESSION->currentStepData();
+        $input_data = &$SESSION->currentRoundData(); 
         $submit_variables = (object) $input_data; // ... as an object
         // include the function file
         $function_file = $SESSION->current_step->game->directory . Game::function_file;
@@ -204,6 +220,9 @@ function executeUserCallback() {
         // save variables after callback
         $basset_variables->save();
     }
+    
+    $SESSION->setStatus(Session::callback_done);
+    
     // NOTE: in partner rounds, callbacks are executed after all users have completed the step
 }
 
@@ -227,15 +246,48 @@ function advanceStep() {
 function groupAvailable() {
     global $RESPONSE, $SESSION;
     
-    if($SESSION->current_step->requiresGroup()) {
-        if($group = GroupRequestQueue::getGroup($SESSION)) {
+    switch($SESSION->current_step->group) {
+        case Step::group_new:
+            // try getting a new group
+            if($group = GroupRequestQueue::getGroup($SESSION)) {
+                return TRUE;
+            } else { // no group available: wait for partner
+                $RESPONSE = array('action' => 'replace', 'html' => 'waiting for partner(s)', 'controls' => array()); //TODO: better waiting screen (load from file)
+                return FALSE;
+            }
+            break;
+        case Step::group_keep:
+            // keeping the group from the last round
+            $previous_group = $SESSION->getGroup($SESSION->currentRound()->previousRound());
+            
+            // make sure all group members have completed their callback
+            $callbacks_done = array_reduce($previous_group->members, function($v, $w) {
+                return $v && ($w->getStatus() == Session::callback_done);
+            }, TRUE);
+            
+            if($callbacks_done) { // update group and move on
+                $SESSION->setStatus(Session::group_request_pending); // to pass the check done by setCurrentGroup
+                $SESSION->setCurrentGroup($previous_group);
+                return TRUE;
+            } else { // wait
+                $RESPONSE = array('action' => 'replace', 'html' => 'waiting on partner(s)', 'controls' => array()); //TODO: better waiting screen (load from file)
+                return FALSE;
+            }
+            // set my partners' groups
+//            foreach($previous_group->partners($SESSION) as $partner) {
+//                $partner->advance();
+//                $partner->setStatus(Session::group_request_pending); // to pass the check done by setCurrentGroup
+//                $partner->setCurrentGroup($previous_group);
+//                $partner->setStatus(Session::group_request_fulfilled); // so that they know to load the html on next poll
+//                $partner->save();
+//            }
+            break;
+        case Step::group_unique:
+            throw new Exception("TODO");//TODO: implement
+        case Step::group_none:
+        default:
             return TRUE;
-        } else { // no group available: wait for partner
-            $RESPONSE = array('action' => 'replace', 'html' => 'waiting for partner(s)', 'controls' => array()); //TODO: better waiting screen (load from file)
-            return FALSE;
-        }
-    } else {
-        return TRUE;
+            break;
     }
 }
 

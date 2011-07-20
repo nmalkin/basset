@@ -6,9 +6,18 @@ class Step {
     protected $html_file;
     public $on_complete;
     public $controls;
-    protected $group;
+    public $group;
     public $group_size;
     protected $group_strangers;
+    
+    // group formation commands
+    const group_none = 'none';
+    const group_new = 'new';
+    const group_keep = 'keep';
+    const group_unique = 'unique';
+    
+    protected static $group_kinds = array(self::group_none, self::group_new, self::group_keep, self::group_unique);
+    
     
     /**
      * Creates a new Step.
@@ -39,7 +48,12 @@ class Step {
         }
         
         // group settings
-        $this->group = isset($step_data->{'group'}) ? $step_data->{'group'} : FALSE; // TODO: check for allowed values
+        // group formation
+        if(isset($step_data->{'group'}) && in_array($step_data->{'group'}, self::$group_kinds)) {
+            $this->group = $step_data->{'group'};
+        } else {
+            $this->group = self::group_none;
+        }
         $this->group_size = isset($step_data->{'group_size'}) ? intval($step_data->{'group_size'}) : 1; // TODO: check >= 1
         $this->group_strangers = isset($step_data->{'group_strangers'}) ? $step_data->{'group_strangers'} : FALSE; // TODO: check for allowed values
 
@@ -127,32 +141,16 @@ class Step {
     
     /** Does this step require partners? */
     public function requiresGroup() {
-        return $this->group != FALSE;
+        return $this->group != self::group_none;
     }
     
     /** 
      * Returns a label identifying this step and (if applicable) repetition.
-     * The label is unique to steps in this game.
      * 
-     * Currently, the format for the label is 'step_X[_repetition_Y]',
-     * where X is the order of this step.
-     * 
-     * @param int the repetition number to include in the label
-     * @throws InvalidArgumentException if this step is repeated, but no repetition was supplied; or if this is an invalid repetition
-     * @return string unique label for this step and repetition
+     * @deprecated Use Round::label() instead.
      */
     public function stepLabel($repetition = NULL) {
-        $step_identifier = $this->order(); //TODO: a better idea might be to use the step code rather than its order
-        
-        if($this->isRepeated()) {
-            // validate given repetition
-            if(is_null($repetition) || (! is_int($repetition)) || $repetition > $this->repeat) {
-                throw new InvalidArgumentException("invalid value supplied for repetition ($repetition)");
-            } else {
-                return 'step_' . $step_identifier . '_repetition_' . $repetition;
-            }
-        } else {
-            return 'step_' . $step_identifier;
-        }
+        $round = new Round($this, $repetition);
+        return $round->label();
     }
 }
