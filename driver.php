@@ -46,13 +46,6 @@ function getResponse() {
                 $RESPONSE = array('action' => 'wait');
              }
             break;
-        case Session::callback_done: // happens only with group==keep
-            if(groupAvailable()) {
-                startStep();
-            } else {
-                $RESPONSE = array('action' => 'wait');
-            }
-            break;
         case Session::finished:
         case Session::terminated:
             $RESPONSE = 'session ended';
@@ -219,8 +212,6 @@ function executeUserCallback() {
         // save variables after callback
         $basset_variables->save();
     }
-    
-    $SESSION->setStatus(Session::callback_done);
     
     // NOTE: in partner rounds, callbacks are executed after all users have completed the step
 }

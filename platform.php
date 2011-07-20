@@ -48,7 +48,6 @@ if($assignment_id == 'ASSIGNMENT_ID_NOT_AVAILABLE') {
             $content = "waiting for partner"; //TODO: have this match the behavior from driver
             break;
         case Session::finished_step:
-        case Session::callback_done;
             $content = 'waiting on partner(s)'; //TODO: have this match the behavior from driver
             break;
         default:

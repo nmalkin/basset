@@ -21,7 +21,6 @@ class Session {
     const group_request_pending = 20;
     const group_request_fulfilled = 28;
     const finished_step = 30;
-    const callback_done = 35;
     const finished = 90;
     const terminated = 91;
 
@@ -30,7 +29,6 @@ class Session {
         self::group_request_pending,
         self::group_request_fulfilled,
         self::finished_step,
-        self::callback_done,
         self::finished,
         self::terminated);
     
