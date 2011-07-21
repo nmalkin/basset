@@ -153,10 +153,12 @@ class Group {
         $session->setStatus(Session::group_request_pending);
         
         // get all the requests for this game and step
-        $queue = new GroupRequestQueue($session->game, $session->currentStepLabel());
+        $queue = new GroupRequestQueue($session->game, $session->currentRound());
+        
+        $request_expires = time() + $session->game->group_wait_limit;
         
         // try getting a match for this session
-        $sessions = $queue->newRequest(new GroupRequest($session));
+        $sessions = $queue->newRequest(new GroupRequest($session, $request_expires));
         
         if(is_bool($sessions) && $sessions == FALSE) { // no match
             return FALSE;

@@ -12,6 +12,7 @@ require_once('grouprequestqueue.php');
 require_once('round.php');
 require_once('session.php');
 require_once('step.php');
+require_once('util.php');
 
 class DoesNotExistException extends Exception {}
 class ConfigurationSyntaxException extends Exception {}

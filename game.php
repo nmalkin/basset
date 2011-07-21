@@ -11,6 +11,15 @@ class Game {
     /** Behavior when a user times out. */
     public $timeout_behavior;
     
+    /**
+     * The number of seconds after which group requests expire.
+     * 
+     * TODO: have setting in steps that can override this
+     * 
+     * @var int limit (seconds)
+     */
+    public $group_wait_limit;
+    
     // possible values for timeout behavior:
     const terminate = 'terminate';
     const skip = 'skip';
@@ -71,6 +80,11 @@ class Game {
             } else {
                 $new_game->timeout_behavior = self::terminate;
             }
+            
+            // group wait limit
+            $new_game->group_wait_limit = 
+                    isset($game_data->{'group_wait_limit'}) && is_int($game_data->{'group_wait_limit'}) ?
+                    intval($game_data->{'group_wait_limit'}) : NULL;
             
             // parse step data
             $new_game->steps = array();

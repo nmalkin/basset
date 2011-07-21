@@ -113,4 +113,9 @@ class Round {
             return $my_order - $their_order;
         }
     }
+    
+    
+    public function __toString() {
+        return $this->label();
+    }
 }

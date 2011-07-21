@@ -25,9 +25,20 @@ function getResponse() {
             processInput();
             break;
         case Session::group_request_pending:
+            // assuming a request is pending in the queue, has it expired?
+            if($request = GroupRequestQueue::retrieveRequest($SESSION)) {
+                if($request->expired()) {
+                    // okay, we're done with this request
+                    // delete it from the database
+                    GroupRequestQueue::deleteRequests(array($request));
+                    
+                    $RESPONSE = 'no partner found! exiting. (TODO: exit trail)'; //TODO: exit trail
+                    return;
+                }
+            }
+            
             // nothing to do, except wait, because if a suitable partner comes along, the request pending status will be changed
             $RESPONSE = array('action' => 'wait'); // TODO: countdown?
-            // TODO: check here for request expiration
             break;
         case Session::group_request_fulfilled:
             startStep();
@@ -254,31 +265,6 @@ function groupAvailable() {
                 return FALSE;
             }
             break;
-//            // keeping the group from the last round
-//            $previous_group = $SESSION->getGroup($SESSION->currentRound()->previousRound());
-//            
-//            // make sure all group members have completed their callback
-//            $callbacks_done = array_reduce($previous_group->members, function($v, $w) {
-//                return $v && ($w->getStatus() == Session::callback_done);
-//            }, TRUE);
-//            
-//            if($callbacks_done) { // update group and move on
-//                $SESSION->setStatus(Session::group_request_pending); // to pass the check done by setCurrentGroup
-//                $SESSION->setCurrentGroup($previous_group);
-//                return TRUE;
-//            } else { // wait
-//                $RESPONSE = array('action' => 'replace', 'html' => 'waiting on partner(s)', 'controls' => array()); //TODO: better waiting screen (load from file)
-//                return FALSE;
-//            }
-//            // set my partners' groups
-////            foreach($previous_group->partners($SESSION) as $partner) {
-////                $partner->advance();
-////                $partner->setStatus(Session::group_request_pending); // to pass the check done by setCurrentGroup
-////                $partner->setCurrentGroup($previous_group);
-////                $partner->setStatus(Session::group_request_fulfilled); // so that they know to load the html on next poll
-////                $partner->save();
-////            }
-//            break;
         case Step::group_unique:
             throw new Exception("TODO");//TODO: implement
         case Step::group_none:

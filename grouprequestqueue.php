@@ -8,22 +8,22 @@ class GroupRequestQueue {
      * Constructs a GroupRequestQueue with entries matching the specified game and step.
      * 
      * @param Game $game the desired game
-     * @param string $step the desired step; The step is defined using the format given by Step->stepLabel.
+     * @param Round $round the desired round
      */
-    public function __construct(Game $game, $step) {
+    public function __construct(Game $game, Round $round) {
         $this->requests = array();
-        $this->game = $game;
-        $this->step = $step;
         
         $dbh = Database::handle();
         
         $sth = $dbh->prepare('SELECT * FROM group_requests WHERE game = :game AND step = :step');
         $sth->bindValue(':game', $game->getID());
-        $sth->bindValue(':step', $step);
+        $sth->bindValue(':step', strval($round));
         $sth->execute();
         
         while($row = $sth->fetch(PDO::FETCH_ASSOC)) {
-            $this->requests[] = new GroupRequest(Session::fromSessionID($row['session']));
+            $expires = Util::sql2unixtime($row['expires']);
+            if($expires == 0) $expires = NULL;
+            $this->requests[] = new GroupRequest(Session::fromSessionID($row['session']), $expires);
         }
     }
 
@@ -38,11 +38,10 @@ class GroupRequestQueue {
     public function newRequest(GroupRequest $request) {
         // filter all requests that match this one
         $matches = array_filter($this->requests, function($potential_match) use ($request) {
-            return $request->match($potential_match);
+            return (! $potential_match->expired()) && $request->match($potential_match);
         });
-//throw new Exception( count($this->requests) . ' ' . count($matches) . ' ' . $request->size() );
+        
         if(count($matches) + 1 >= $request->size()) { // we have enough people to form a group!
-            
             // get as many of the matches as we need for the group
             $selected_requests = array_slice($matches, 0, $request->size() - 1);
 
@@ -73,6 +72,14 @@ class GroupRequestQueue {
         // remove from queue
         $this->requests = array_diff($this->requests, $requests);
         
+        self::deleteRequests($requests);
+    }
+    
+    /**
+     * Deletes the given requests from the database.
+     * @param array $requests an array of GroupRequests
+     */
+    public static function deleteRequests(array $requests) {
         // remove from database
         $dbh = Database::handle();
         $sth = $dbh->prepare('DELETE FROM group_requests WHERE session = :session');
@@ -92,10 +99,36 @@ class GroupRequestQueue {
         // add to database
         $dbh = Database::handle();
         
-        $sth = $dbh->prepare('INSERT INTO group_requests (session, game, step) VALUES (:session, :game, :step)');
+        $sth = $dbh->prepare('INSERT INTO group_requests (session, game, step, expires) VALUES (:session, :game, :step, :expires)');
         $sth->bindValue(':session', $request->session->id);
         $sth->bindValue(':game', $request->game()->getID());
-        $sth->bindValue(':step', $request->session->currentStepLabel());
+        $sth->bindValue(':step', strval($request->session->currentRound()));
+        $sth->bindValue(':expires', Util::unix2sqltime($request->expires));
         $sth->execute();
+    }
+    
+    /**
+     * Retrieves pending group request for given session.
+     * If no group request is pending, returns FALSE.
+     * 
+     * If multiple group requests are pending (though this shouldn't happen),
+     * returns the first request returned by the database
+     * (in all likelihood, the oldest one).
+     * 
+     * @param Session $session
+     * @return GroupRequest pending group request or FALSE if none is pending
+     */
+    public static function retrieveRequest(Session $session) {
+        $dbh = Database::handle();
+        $sth = $dbh->prepare('SELECT * FROM group_requests WHERE session = ?');
+        $sth->execute(array($session->id));
+        
+        if($row = $sth->fetch(PDO::FETCH_ASSOC)) {
+            $expires = Util::sql2unixtime($row['expires']);
+            if($expires == 0) $expires = NULL;
+            return new GroupRequest($session, $expires);
+        } else {
+            return FALSE;
+        }
     }
 }

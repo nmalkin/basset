@@ -101,8 +101,7 @@ class Session {
                 $new_session->data = unserialize($row['data']);
                 $new_session->status = intval($row['status']);
                 
-                date_default_timezone_set('UTC'); // for internal consistency, we use the timezone UTC
-                $new_session->expires = strtotime($row['expires']);
+                $new_session->expires = Util::sql2unixtime($row['expires']);
                 if($new_session->expires == 0) $new_session->expires = NULL;
                 
                 self::$sessions[$session_id] = $new_session;
@@ -147,8 +146,7 @@ class Session {
         $sth->bindParam(':expires', $expiration_datetime);
         $sth->bindValue(':session', $this->id);
         
-        date_default_timezone_set('UTC'); // for internal consistency, we use the timezone UTC
-        $expiration_datetime = date('Y-m-d H:i:s', $this->expires); // convert unix time to SQL datetime; 
+        $expiration_datetime = Util::unix2sqltime($this->expires); // convert unix time to SQL datetime
             // NULL is treated as zero (=> datetime = 1970:...) and will be decoded as such
         
         $sth->execute();
