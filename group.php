@@ -270,4 +270,22 @@ class Group {
         });
         return array_values($partners); // re-index the array
     }
+    
+    /**
+     * Have no members of this group expired?
+     * 
+     * A session is considered expired if:
+     * 1) its status is 'terminated', or
+     * 2) its status is 'awaiting_user_input' but its time has expired
+     * 
+     * @return boolean TRUE if all members of this group have *not* expired, FALSE otherwise
+     */
+    public function allAlive() {
+        return array_reduce($this->members, function($v, $w) {
+            $expired = 
+               ( $w->getStatus() == Session::terminated) ||
+               (($w->getStatus() == Session::awaiting_user_input) && $w->expired());
+            return $v && (! $expired);
+        }, TRUE);
+    }
 }

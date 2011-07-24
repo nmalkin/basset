@@ -54,7 +54,7 @@ function getResponse() {
                  * we can assume that the waiting screen has already been loaded.
                  * So we just tell them to wait (overriding the response).
                 */
-                $RESPONSE = array('action' => 'wait');
+//                $RESPONSE = array('action' => 'wait');
              }
             break;
         case Session::finished:
@@ -107,6 +107,12 @@ function readyToMoveOn() {
     
     if($SESSION->current_step->requiresGroup()) {
         $group = $SESSION->getCurrentGroup();
+        
+        if(! $group->allAlive()) {
+            $RESPONSE = 'group expired. TODO: exit trail'; //TODO: exit trail
+            return FALSE;
+        }
+        
         if(! $group->finishedRound($SESSION->currentRound())) { // waiting for partners' input
             $RESPONSE = array('action' => 'replace', 'html' => 'waiting on partner(s)', 'controls' => array()); //TODO: better waiting screen (load from file)
             return FALSE;
@@ -142,7 +148,7 @@ function sessionExpired() {
  * Validates data submitted by the user, 
  * building an array with user-submitted values as it goes.
  * 
- * @return TRUE if the user data is valid, FALSE if it isn't
+ * @return boolean TRUE if the user data is valid, FALSE if it isn't
  */
 function validateInput() {
     global $RESPONSE, $SESSION;
