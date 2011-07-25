@@ -96,13 +96,24 @@ class Session {
                 $new_session->assignment_id = $row['assignment_id'];
                 $new_session->worker_id = $row['worker_id'];
                 $new_session->game = Game::fromGameID($row['game']);
-                $new_session->current_step = $new_session->game->steps[intval($row['step'])];
                 $new_session->repetition = intval($row['repetition']);
                 $new_session->data = unserialize($row['data']);
                 $new_session->status = intval($row['status']);
                 
+                // read expiration
                 $new_session->expires = Util::sql2unixtime($row['expires']);
                 if($new_session->expires == 0) $new_session->expires = NULL;
+                
+                // decode step
+                // steps are encoded as a string; either step_X or exit_step_Y
+                $step_string = $row['step'];
+                if(substr($step_string, 0, 5) == 'step_') { // regular step
+                    $order = intval(substr($step_string, 5));
+                    $new_session->current_step = $new_session->game->steps[$order];
+                } elseif(substr($step_string, 0, 10) == 'exit_step_') { // exit step
+                    $order = intval(substr($step_string, 10));
+                    $new_session->current_step = $new_session->game->exit_steps[$order];
+                }
                 
                 self::$sessions[$session_id] = $new_session;
             } else {
@@ -139,12 +150,13 @@ class Session {
     public function save() {
         $dbh = Database::handle();
         
-        $sth = $dbh->prepare('UPDATE sessions SET step = :step, repetition = :repetition, data = :data, expires = :expires WHERE session_id = :session');
-        $sth->bindValue(':step', $this->current_step->order());
+        $sth = $dbh->prepare('UPDATE sessions SET step = :step, repetition = :repetition, data = :data, expires = :expires, status = :status WHERE session_id = :session');
+        $sth->bindValue(':step', $this->current_step->__toString());
         $sth->bindValue(':repetition', $this->repetition);
         $sth->bindValue(':data', serialize($this->data));
         $sth->bindParam(':expires', $expiration_datetime);
         $sth->bindValue(':session', $this->id);
+        $sth->bindValue(':status', $this->status);
         
         $expiration_datetime = Util::unix2sqltime($this->expires); // convert unix time to SQL datetime
             // NULL is treated as zero (=> datetime = 1970:...) and will be decoded as such
@@ -350,6 +362,24 @@ class Session {
      */
     public function currentRound() {
         return new Round($this->current_step, $this->repetition);
+    }
+    
+    /**
+     * Starts the session on the exit trail.
+     */
+    public function startExitTrail() {
+        $this->current_step = $this->game->exit_steps[0];
+        $this->repetition = 0;
+    }
+    
+    /**
+     * Is the session's current step an ExitStep?
+     * 
+     * @see ExitStep
+     * @return boolean TRUE if the current step is an ExitStep
+     */
+    public function onExitTrail() {
+        return (get_class($this->current_step) == "ExitStep");
     }
     
 }

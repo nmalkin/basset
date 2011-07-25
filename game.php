@@ -20,6 +20,9 @@ class Game {
      */
     public $group_wait_limit;
     
+    /** An array of Steps to follow on termination. */
+    public $exit_steps;
+    
     // possible values for timeout behavior:
     const terminate = 'terminate';
     const skip = 'skip';
@@ -63,14 +66,17 @@ class Game {
         if(! isset(self::$games[$game_code])) { // instance for this code NOT already initialized
             $new_game = new Game();
             
+            // game code
             $new_game->code = $game_code;
             
+            // load game configuration data
             $game_file_name = GAMES_DIRECTORY . $new_game->code . GAMES_FILE_EXTENSION;
             if(! file_exists($game_file_name)) { throw new Exception('game file missing: ' . $game_file_name); }
             
             $game_data = json_decode(file_get_contents($game_file_name));
             if(is_null($game_data)) { throw new ConfigurationSyntaxException("game configuration in $game_file_name is not properly formatted JSON"); }
             
+            // set game name and directory
             $new_game->name = $game_data->{'name'};
             $new_game->directory = GAMES_DIRECTORY . $game_data->{'directory'} . DIRECTORY_SEPARATOR;
             
@@ -91,26 +97,49 @@ class Game {
             
             foreach($game_data->{'steps'} as $step_code) {
                 $step_file_name = $new_game->directory . $step_code . STEP_FILE_EXTENSION;
-
-                // get step config file
-                $step_file = file_get_contents($step_file_name);
-                if(! $step_file) {
-                    throw new Exception("could not find step file ($step_file_name)");
-                }
-
-                // parse the json in the config file as an object
-                $step_data = json_decode($step_file);
-                if(is_null($step_data)) { throw new ConfigurationSyntaxException("step configuration in $step_file_name is not properly formatted JSON"); }
-
+                $step_data = self::getStepData($step_file_name);
                 $current_step = new Step($step_data, $new_game);
-                
                 $new_game->steps[] = $current_step;
+            }
+            
+            // parse exit-step data
+            $new_game->exit_steps = array();
+            
+            foreach($game_data->{'on_exit'} as $step_code) {
+                $step_file_name = $new_game->directory . $step_code . STEP_FILE_EXTENSION;
+                $step_data = self::getStepData($step_file_name);
+                $current_step = new ExitStep($step_data, $new_game);
+                $new_game->exit_steps[] = $current_step;
             }
             
             self::$games[$game_code] = $new_game;
         }
         
         return self::$games[$game_code];
+    }
+    
+    /**
+     * Returns the array of step data (to be parsed by the Step constructor) 
+     * from the given step configuration file.
+     * 
+     * @throws Exception if the file was not found
+     * @throws ConfigurationSyntaxException if the file could not be decoded as JSON
+     * 
+     * @param string $step_file_name the name of the file to read
+     * @return array an array with the data
+     */
+    protected static function getStepData($step_file_name) {
+        // get step config file
+        $step_file = file_get_contents($step_file_name);
+        if(! $step_file) {
+            throw new Exception("could not find step file ($step_file_name)");
+        }
+
+        // parse the json in the config file as an object
+        $step_data = json_decode($step_file);
+        if(is_null($step_data)) { throw new ConfigurationSyntaxException("step configuration in $step_file_name is not properly formatted JSON"); }
+        
+        return $step_data;
     }
 
     /** Returns the ID of this game in the database. */

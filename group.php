@@ -226,6 +226,10 @@ class Group {
      * 1) its current round follows the given round
      * 2) OR if it is in the given round and its status is Session::finished_step
      * 
+     * NOTE that this relies on {@link Round::compareTo() comparison between rounds}
+     * and will therefore give bad results if any of the sessions are on the exit trail.
+     * @see Round::compareTo()
+     * 
      * @param Round $round
      * @return boolean TRUE if all members of this group have finished the given round
      */
@@ -283,6 +287,7 @@ class Group {
     public function allAlive() {
         return array_reduce($this->members, function($v, $w) {
             $expired = 
+                 $w->onExitTrail()                       ||
                ( $w->getStatus() == Session::terminated) ||
                (($w->getStatus() == Session::awaiting_user_input) && $w->expired());
             return $v && (! $expired);

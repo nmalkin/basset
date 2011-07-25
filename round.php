@@ -21,6 +21,15 @@ class Round {
      */
     public function __construct(Step $step, $repetition) {
         $this->step = $step;
+        
+        // validate repetition
+        if(  (! is_null($this->repetition)) &&
+           ( (! is_int($this->repetition)) ||
+             ($repetition > $this->step->repeat) ) ) 
+        {
+                throw new InvalidArgumentException("invalid value supplied for repetition ($this->repetition)");
+        }
+        
         $this->repetition =  is_null($repetition) ? 0 : $repetition;
     }
     
@@ -46,20 +55,14 @@ class Round {
      * Returns the previous round in the game.
      * If this is a repeated step, then this is the previous repetition of this step
      * (unless this is the first repetition).
-     * Otherwise, it is the 0-th repetition of the previous step.
+     * Otherwise, it is the last repetition of the previous step.
      * 
      * @throws DoesNotExistException if there is no previous step
      * @return Round the previous round
      */
     public function previousRound() {
         if($this->repetition == 0) {
-            $previous = $this->step->order() - 1;
-            
-            if(isset($this->step->game->steps[$previous])) {
-                return new Round($this->step->game->steps[$previous], 0);
-            } else {
-                throw new DoesNotExistException('this is the first step');
-            }
+            return new Round($this->step->previousStep(), $this->step->repeat);
         } else {
             if($this->step->isRepeated()) {
                 return new Round($this->step, $this->repetition - 1);
@@ -81,17 +84,12 @@ class Round {
      * @return string unique label for this step and repetition
      */
     public function label() {
-        $step_identifier = $this->step->order(); //TODO: a better idea might be to use the step code rather than its order
+        $step_identifier = $this->step->__toString(); //TODO: a better idea might be to use the step code rather than its order
         
         if($this->step->isRepeated()) {
-            // validate given repetition
-            if(is_null($this->repetition) || (! is_int($this->repetition)) || $this->repetition > $this->step->repeat) {
-                throw new InvalidArgumentException("invalid value supplied for repetition ($this->repetition)");
-            } else {
-                return 'step_' . $step_identifier . '_repetition_' . $this->repetition;
-            }
+            return $step_identifier . '_repetition_' . $this->repetition;
         } else {
-            return 'step_' . $step_identifier;
+            return $step_identifier;
         }
     }
     
@@ -99,6 +97,10 @@ class Round {
      * Compares this object with the specified object for order. 
      * Returns a negative integer, zero, or a positive integer 
      * as this object is less than, equal to, or greater than the specified object.
+     * 
+     * WARNING: this comparison assumes the rounds are in the same sequence.
+     * This means that you CANNOT compare an ExitStep with a regular Step.
+     * (I mean, you can, but you won't get meaningful results.)
      * 
      * @param Round $round the round to compare to this one
      * @return int negative if this round comes before the given one; positive if it comes after; zero if they come at the same time (are the same)

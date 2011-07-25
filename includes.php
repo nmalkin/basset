@@ -5,6 +5,7 @@ require_once('bassetvariables.php');
 require_once('constants.php');
 require_once('control.php');
 require_once('database.php');
+require_once('exitstep.php');
 require_once('game.php');
 require_once('group.php');
 require_once('grouprequest.php');

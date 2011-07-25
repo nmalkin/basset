@@ -32,7 +32,9 @@ function getResponse() {
                     // delete it from the database
                     GroupRequestQueue::deleteRequests(array($request));
                     
-                    $RESPONSE = 'no partner found! exiting. (TODO: exit trail)'; //TODO: exit trail
+//                    $RESPONSE = 'no partner found! exiting. (TODO: exit trail)'; //TODO: exit trail
+                    $SESSION->startExitTrail();
+                    startStep();
                     return;
                 }
             }
@@ -109,7 +111,9 @@ function readyToMoveOn() {
         $group = $SESSION->getCurrentGroup();
         
         if(! $group->allAlive()) {
-            $RESPONSE = 'group expired. TODO: exit trail'; //TODO: exit trail
+//            $RESPONSE = 'group expired. TODO: exit trail'; //TODO: exit trail
+            $SESSION->startExitTrail();
+            startStep();
             return FALSE;
         }
         
@@ -133,7 +137,9 @@ function sessionExpired() {
     if($SESSION->expired()) { // time has run out!
         if($SESSION->game->timeout_behavior == Game::terminate) {
             $SESSION->terminateSession();
-            $RESPONSE = 'session terminated! (TODO: redirect)';
+//            $RESPONSE = 'session terminated! (TODO: redirect)';
+            $SESSION->startExitTrail();
+            startStep();
             return TRUE;
         } elseif($SESSION->game->timeout_behavior == Game::skip) {
             $RESPONSE = 'TODO: timeout behavior = skip';

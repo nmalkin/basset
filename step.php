@@ -134,6 +134,20 @@ class Step {
         }
     }
     
+    /**
+     * Returns the previous step in this game.
+     * 
+     * @throws DoesNotExistException if this is last step
+     */
+    public function previousStep() {
+        $previous = $this->order() - 1;
+        if(isset($this->game->steps[$previous])) {
+            return $this->game->steps[$previous];
+        } else {
+            throw new DoesNotExistException('this is the first step');
+        }
+    }
+    
     /** Does this step need to be repeated? (Will it be run more than once?) */
     public function isRepeated() {
         return $this->repeat > 0;
@@ -152,5 +166,21 @@ class Step {
     public function stepLabel($repetition = NULL) {
         $round = new Round($this, $repetition);
         return $round->label();
+    }
+    
+    /**
+     * A string representation of this step, in the form step_X,
+     * where X is the order of this step.
+     * 
+     * Note that this format is used by Round::label() and,
+     * by extension, a number of other parts of the program.
+     * @see Round::label()
+     * @see Session::save()
+     * @see Session::fromSessionID()
+     * 
+     * @return string
+     */
+    public function __toString() {
+        return 'step_' . $this->order(); //TODO: a better idea might be to use the step code rather than its order
     }
 }
