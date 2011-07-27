@@ -47,6 +47,7 @@ if($assignment_id == 'ASSIGNMENT_ID_NOT_AVAILABLE') {
         case Session::group_request_pending:
             $content = "waiting for partner"; //TODO: have this match the behavior from driver
             break;
+        case Session::callback_done: // proper action will be taken on poll
         case Session::finished_step:
             $content = 'waiting on partner(s)'; //TODO: have this match the behavior from driver
             break;

@@ -47,7 +47,7 @@ function getResponse() {
             break;
         case Session::finished_step:
             if(readyToMoveOn()) {
-                executeUserCallback();
+                executeGroupCallbacks();
                 advanceStep();
             } else {
                 /* 
@@ -58,6 +58,9 @@ function getResponse() {
                 */
 //                $RESPONSE = array('action' => 'wait');
              }
+            break;
+        case Session::callback_done:
+            advanceStep();
             break;
         case Session::finished:
         case Session::terminated:
@@ -86,7 +89,7 @@ function processInput() {
         $SESSION->setStatus(Session::finished_step);
         
         if(readyToMoveOn()) {
-            executeUserCallback();
+            executeGroupCallbacks();
             advanceStep();
         }
     } else { // no user input
@@ -208,38 +211,69 @@ function storeInput() {
     }
 }
 
-function executeUserCallback() {
-    global $RESPONSE, $SESSION;
+/**
+ * Executes the user-defined callback with data for the given session
+ * 
+ * @throws ConfigurationSyntaxException if there was a problem executing the callback
+ * @param Session $session the session "for whom" the callback is executed
+ */
+function executeCallback(Session $session) {
+    global $RESPONSE;
     
     // construct the data object that will be passed to the user
-    $basset_variables = new BassetVariables($SESSION);
+    $basset_variables = new BassetVariables($session);
 
     // prepare and execute user-defined callback
-    if($SESSION->current_step->on_complete) {
+    if($session->current_step->on_complete) {
         // the submission data from the latest round will also be passed to the user
-        $input_data = &$SESSION->currentRoundData(); 
+        $input_data = &$session->currentRoundData(); 
         $submit_variables = (object) $input_data; // ... as an object
-        // include the function file
-        $function_file = $SESSION->current_step->game->directory . Game::function_file;
+        
+        // get the function file
+        $function_file = $session->current_step->game->directory . Game::function_file;
         if(! file_exists($function_file)) {
-            $RESPONSE = "ERROR: game missing function file (looked for $function_file)"; //TODO: throw exception?
-            return;
+            throw new ConfigurationSyntaxException("game missing function file (looked for $function_file)");
         }
-        include $function_file;
+        
+        include_once $function_file;
+        
         // get the name of the callback function
-        $user_function = $SESSION->current_step->on_complete;
+        $user_function = $session->current_step->on_complete;
+        
         // check that the function exists
         if(! function_exists($user_function)) { throw new ConfigurationSyntaxException("callback function $user_function does not exist"); }
+        
         // execute the callback
         $user_function($basset_variables, $submit_variables);
+        
         // save variables after callback
         $basset_variables->save();
     }
     
-    // NOTE: in partner rounds, callbacks are executed after all users have completed the step
+    return TRUE;
 }
 
-/** advance session to the next step (or repetition) */
+/**
+ * Executes the user-defined callback for all members of the current group.
+ * If there is no group, then just does it for the session.
+ */
+function executeGroupCallbacks() {
+    global $RESPONSE, $SESSION;
+    
+    if($SESSION->current_step->requiresGroup()) {
+        $group = $SESSION->getCurrentGroup();
+        
+        foreach($group->members as $member) {
+            executeCallback($member);
+            $member->setStatus(Session::callback_done);
+        }
+    } else {
+        executeCallback($SESSION);
+        $SESSION->setStatus(Session::callback_done);
+    }
+}
+
+/** Advance session to the next step (or repetition) */
 function advanceStep() {
     global $RESPONSE, $SESSION;
     
